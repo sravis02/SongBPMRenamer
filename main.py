@@ -171,6 +171,7 @@ class BpmScraper:
             self._changeFileName(oldFileName, newFileName)
 
 
-scraper = BpmScraper("C:\\Users\\lucas\\Documents\\mixtapes\\technonewera");
-scraper.run()
+if __name__ == "__main__":
+    scraper = BpmScraper("C:\\Users\\lucas\\Documents\\mixtapes\\technonewera");
+    scraper.run()
 
