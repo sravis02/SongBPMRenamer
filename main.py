@@ -1,13 +1,15 @@
 import requests
 from constants import HEADERS, AUDIO_FILE_TYPES
 from bs4 import BeautifulSoup as bs
-from os import listdir
+from os import listdir, rename
+from os.path import join
 
 class BpmScraper:
     def __init__(self, folderPath):
         self.folderPath = folderPath
 
-    def getBeatportResults(self, keyword):
+
+    def _getBeatportResults(self, keyword):
         # Fetch API
         try:
             response = requests.get('https://www.beatport.com/search', headers=HEADERS, params=(
@@ -39,7 +41,8 @@ class BpmScraper:
 
         return searchResults
     
-    def selectResult(self, searchResults, keyword):
+
+    def _selectResult(self, searchResults, keyword):
         if len(searchResults) == 0:
             print(f"No results for \"{keyword}\"\n")
             return None
@@ -72,6 +75,7 @@ class BpmScraper:
                 else:
                     print("Invalid number, please retry")
 
+
     def _getFoldersAudioFiles(self):
         fileList = listdir(self.folderPath)
 
@@ -84,33 +88,37 @@ class BpmScraper:
 
         return list(filter(filterFunction, fileList))
 
+
     def _removeFileType(self, fileName):
         splitted = fileName.split(".")
         del splitted[-1]
         return ".".join(splitted)
 
+
     def _initFilesCollection(self, filesList):
         self.filesCollection = []
         for file in filesList:
             element = {
-                "file":file,
+                "fileName":file,
                 "keyword":self._removeFileType(file),
                 "beatportId": None,
                 
             }
             self.filesCollection.append(element)
         
+
     def _insertBeatportIds(self):
-        for file in self.filesCollection:
-            keyword = file.get("keyword")
-            searchResults = self.getBeatportResults(keyword)
+        for fileData in self.filesCollection:
+            keyword = fileData.get("keyword")
+            searchResults = self._getBeatportResults(keyword)
             # Select track by user input
-            beatportId = self.selectResult(searchResults, keyword)
+            beatportId = self._selectResult(searchResults, keyword)
             # If no correct result found (/skipped) continue with next file
             if not beatportId:
                 continue
             else:
-                file["beatportId"] = beatportId
+                fileData["beatportId"] = beatportId
+
 
     def _getBpm(self, beatportId):
         try:
@@ -125,32 +133,43 @@ class BpmScraper:
         element = parentElement.find("span", class_="value")
 
         return element.text
-
-
     
+
+    def _changeFileName(self, oldFileName, newFileName):
+        oldFilePath = join(self.folderPath, oldFileName)
+        newFilePath = join(self.folderPath, newFileName)
+
+        rename(oldFilePath, newFilePath)
+
+
     def run(self):
         audioFilesList = self._getFoldersAudioFiles()
         print(f"#####\nFound {len(audioFilesList)} audio files\n#####\n")
+
         # filesCollection contains data for each file
         self._initFilesCollection(audioFilesList)
+        # Fetch search results by kw, select result by user input, insert beatportId into filesCollection
         self._insertBeatportIds()
 
-        for file in self.filesCollection:
-            beatportId = file.get("beatportId")
-
+        for fileData in self.filesCollection:
+            beatportId = fileData.get("beatportId")
             if not beatportId:
                 continue
             
+            # Fetching BPM
+            print("Fetching BPM...")
             bpm = self._getBpm(beatportId)
-            
-            """
-            TODO:
-            fetch bpm -> https://www.beatport.com/track/-/<beatportId>
-            prepend bpm count to filename
-            """
+            if not bpm:
+                print("Skipping File...")
+                continue
+            fileData["bpm"] = bpm
 
+            # Renaming
+            oldFileName = fileData.get("fileName")
+            newFileName = f"{bpm}_{oldFileName}"
+            print(f"Renaming to {newFileName}")
+            self._changeFileName(oldFileName, newFileName)
 
-        
 
 scraper = BpmScraper("C:\\Users\\lucas\\Documents\\mixtapes\\technonewera");
 scraper.run()
